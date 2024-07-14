@@ -1,7 +1,13 @@
 import React, { useEffect, useState } from "react";
 import SortableTable from "../components/SortableTable";
-import { getEmployeeSalaryEntries } from "../APIUtils/employeesDataGetter";
+import {
+  getEmployeeSalaryEntries,
+  createEmployeeSalaryEntry,
+  getEmployeeSalaryEntriesOfCompany,
+  fetchAllOwnCompanies,
+} from "../APIUtils/employeesDataGetter";
 import Collapsible from "../components/Collapsible";
+import Dropdown from "../components/DropDown";
 
 // Data and Configuration
 const Transactions = [
@@ -87,28 +93,45 @@ const Employee: React.FC<{
   employee_id: number;
 }> = ({ handleBackClick, employee_id }) => {
   const [salaryEntries, setSalaryEntries] = useState([]);
+  const [selectedCompany, setSelectedCompany] = useState(undefined);
+
+  const [allOwnCompanies, setAllOwnCompanies] = useState([]);
+  const options = ["saisri", "kethaki"];
 
   useEffect(() => {
     const fetchSalaryEntries = async () => {
-      const fetchedEntries = await getEmployeeSalaryEntries(
-        "key",
-        "token",
-        employee_id
-      );
-      if (fetchedEntries) {
-        setSalaryEntries(fetchedEntries);
-        console.log("Fetched entries:", fetchedEntries);
-      } else {
-        // Handle error or set default state
+      const companies = await fetchAllOwnCompanies();
+      if (companies) {
+        setAllOwnCompanies(companies);
+        // comp equals companies[0] if selectedCompany is undefined otherwise it equals selectedCompany
+        const comp = selectedCompany || companies[0];
+        setSelectedCompany(comp);
+
+        console.log("Companies:", comp);
+        if (comp) {
+          const fetchedEntries = await getEmployeeSalaryEntriesOfCompany(
+            "key",
+            "token",
+            employee_id,
+            comp
+          );
+
+          if (fetchedEntries) {
+            setSalaryEntries(fetchedEntries);
+            console.log("Fetched entries:", fetchedEntries);
+          } else {
+            // Handle error or set default state
+          }
+        }
       }
     };
 
     fetchSalaryEntries();
-  }, []);
+  }, [selectedCompany]);
 
   return (
     <div className="min-h-screen min-w-full bg-gray-100 p-8">
-      <div className=" bg-white shadow-lg rounded-lg p-6 overflow-hidden">
+      <div className=" bg-white shadow-lg rounded-lg p-6 overflow-visible">
         <div className="flex justify-between items-center mb-4">
           <button
             onClick={handleBackClick}
@@ -116,8 +139,21 @@ const Employee: React.FC<{
           >
             Go back
           </button>
+
           <h1 className="text-2xl font-bold">Employee Transactions</h1>
-          <AddSalaryEntryModal />
+          <Dropdown
+            options={allOwnCompanies}
+            placeholder={allOwnCompanies[0] || "Select an option"}
+            setOptionHandler={setSelectedCompany}
+          />
+          <button className="bg-purple-500 rounded-md px-4 py-3 -m-8 ">
+            Add Company
+          </button>
+          <AddSalaryEntryModal
+            employee_id={employee_id}
+            selectedCompany={selectedCompany}
+            ownCompanies={allOwnCompanies}
+          />
         </div>
         <div className="max-h-[calc(100vh-112px)] overflow-y-auto mt-6">
           <SortableTable data={salaryEntries} config={config} keyFn={keyFn} />
@@ -140,16 +176,20 @@ type FormData = {
   costs: number[];
   quantities: number[];
 };
-const AddSalaryEntryModal: React.FC = () => {
+const AddSalaryEntryModal: React.FC<{
+  employee_id: number;
+  selectedCompany: string;
+  ownCompanies: string[];
+}> = ({ employee_id, selectedCompany, ownCompanies }) => {
   const [modalOpen, setModalOpen] = useState(false);
   const [formData, setFormData] = useState<FormData>({
-    employee_id: 0,
+    employee_id: employee_id,
     payment: 0,
     record_date: "",
     type_of_work: "",
     type_of_payment: "",
     mode_of_payment: "",
-    company: "",
+    company: selectedCompany,
     works: [""],
     costs: [0],
     quantities: [0],
@@ -197,6 +237,7 @@ const AddSalaryEntryModal: React.FC = () => {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     console.log(formData);
+    ToggleModal();
     // Submit formData to the server or process it as needed
   };
 
@@ -286,19 +327,6 @@ const AddSalaryEntryModal: React.FC = () => {
                     </div>
                   ))}
                 </div>
-
-                <div className="mb-4">
-                  <label className="block mb-2" htmlFor="employee_id">
-                    Employee ID
-                  </label>
-                  <input
-                    className="w-full p-2 border rounded"
-                    type="number"
-                    name="employee_id"
-                    value={formData.employee_id}
-                    onChange={handleChange}
-                  />
-                </div>
                 <div className="mb-4">
                   <label className="block mb-2" htmlFor="payment">
                     Payment
@@ -359,7 +387,7 @@ const AddSalaryEntryModal: React.FC = () => {
                     onChange={handleChange}
                   />
                 </div>
-                <div className="mb-4">
+                {/* <div className="mb-4">
                   <label className="block mb-2" htmlFor="company">
                     Company
                   </label>
@@ -370,6 +398,18 @@ const AddSalaryEntryModal: React.FC = () => {
                     value={formData.company}
                     onChange={handleChange}
                   />
+                </div> */}
+                <div className="mb-4">
+                  <label className="block mb-2" htmlFor="company">
+                    Company
+                  </label>
+                  <Dropdown
+                    options={ownCompanies}
+                    placeholder={selectedCompany || "Select an option"}
+                    setOptionHandler={(value) =>
+                      setFormData({ ...formData, ["company"]: value })
+                    }
+                  />
                 </div>
               </div>
 
@@ -378,6 +418,12 @@ const AddSalaryEntryModal: React.FC = () => {
                 type="submit"
               >
                 Submit
+              </button>
+              <button
+                className="bg-red-500 text-white px-4 py-2 rounded ml-4"
+                onClick={ToggleModal}
+              >
+                Cancel
               </button>
             </form>
           </div>
