@@ -93,6 +93,82 @@ async function getEmployeeSalaryEntries(
   }
 }
 
+async function getEmployeeSalaryEntriesOfCompany(
+  key: string,
+  token: string,
+  employeeId: number,
+  company: string
+) {
+  try {
+    const response = await axios.get(
+      "http://127.0.0.1:8001/get_employee_salary_entries_company",
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        params: {
+          key,
+          token,
+          employee_id: employeeId,
+          company,
+        },
+      }
+    );
+    return response.data.salary_entries;
+  } catch (error) {
+    console.error("Error fetching employee salary entries:", error);
+    throw error;
+  }
+}
+
+const fetchAllOwnCompanies = async () => {
+  try {
+    const response = await axios.get(
+      "http://127.0.0.1:8001/get_all_own_company_names?key=null&token=null",
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    return response.data.companies;
+  } catch (error) {
+    console.error("Error fetching own companies:", error);
+  }
+};
+
+interface EmployeeSalaryData {
+  employee_id: number;
+  payment: number;
+  record_date: string;
+  type_of_work: string;
+  type_of_payment: string;
+  mode_of_payment: string;
+  company: string;
+  works: string[];
+  costs: number[];
+  quantities: number[];
+}
+
+const createEmployeeSalaryEntry = async (data: EmployeeSalaryData) => {
+  try {
+    const response = await axios.post(
+      "http://127.0.0.1:8001/create_employee_salary_entry?key=&token=",
+      {
+        data,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    console.log(response.data);
+  } catch (error) {
+    console.error("Error creating employee salary entry:", error);
+  }
+};
+
 // Example usage:
 async function main() {
   const employees = await getAllEmployees();
@@ -103,5 +179,12 @@ async function main() {
   }
 }
 
-export { getAllEmployees, addEmployee, getEmployeeSalaryEntries };
+export {
+  getAllEmployees,
+  addEmployee,
+  getEmployeeSalaryEntries,
+  createEmployeeSalaryEntry,
+  getEmployeeSalaryEntriesOfCompany,
+  fetchAllOwnCompanies,
+};
 export type { Employee, EmployeeInput };
