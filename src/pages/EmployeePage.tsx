@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from "react";
+import Select, { GroupBase } from "react-select";
 import SortableTable from "../components/SortableTable";
 import {
   getEmployeeSalaryEntries,
   createEmployeeSalaryEntry,
   getEmployeeSalaryEntriesOfCompany,
   fetchAllOwnCompanies,
+  getPaymentModes,
 } from "../APIUtils/employeesDataGetter";
 import Collapsible from "../components/Collapsible";
 import Dropdown from "../components/DropDown";
+import { validateSalaryForm } from "../utils/FormValidator";
+import usePaymentModeStore from "../store/usePaymentModes";
 
 // Data and Configuration
 const Transactions = [
@@ -44,8 +48,8 @@ const config = [
   },
   {
     label: "Mode of Payment",
-    render: (d: any) => d.mode_of_payment,
-    sortValue: (d: any) => d.mode_of_payment,
+    render: (d: any) => d.payment_mode,
+    sortValue: (d: any) => d.payment_mode,
   },
   {
     label: "Payment",
@@ -57,16 +61,16 @@ const config = [
     render: (d: any) => d.type_of_payment,
     sortValue: (d: any) => d.type_of_payment,
   },
-  {
-    label: "Type of Work",
-    render: (d: any) => d.type_of_work,
-    sortValue: (d: any) => d.type_of_work,
-  },
+  // {
+  //   label: "Type of Work",
+  //   render: (d: any) => d.type_of_work,
+  //   sortValue: (d: any) => d.type_of_work,
+  // },
   {
     label: "Works",
     render: (d: any) => (
       <Collapsible
-        items1={d.works}
+        items1={d.full_work_name}
         items2={d.quantities}
         items3={d.costs}
         headings={["works", "quantities", "costs"]}
@@ -107,7 +111,6 @@ const Employee: React.FC<{
         const comp = selectedCompany || companies[0];
         setSelectedCompany(comp);
 
-        console.log("Companies:", comp);
         if (comp) {
           const fetchedEntries = await getEmployeeSalaryEntriesOfCompany(
             "key",
@@ -146,9 +149,7 @@ const Employee: React.FC<{
             placeholder={allOwnCompanies[0] || "Select an option"}
             setOptionHandler={setSelectedCompany}
           />
-          <button className="bg-purple-500 rounded-md px-4 py-3 -m-8 ">
-            Add Company
-          </button>
+
           <AddSalaryEntryModal
             employee_id={employee_id}
             selectedCompany={selectedCompany}
@@ -165,35 +166,81 @@ const Employee: React.FC<{
 
 export default Employee;
 type FormData = {
+  work_ids: number[];
   employee_id: number;
   payment: number;
   record_date: string;
-  type_of_work: string;
+  // type_of_work: string;
   type_of_payment: string;
-  mode_of_payment: string;
+  payment_mode_id: number;
   company: string;
   works: string[];
   costs: number[];
   quantities: number[];
 };
+
+const works: Work[] = [
+  { work_name: "Plumbing", cost: 100, work_id: 1 },
+  { work_name: "Electrical", cost: 200, work_id: 2 },
+  { work_name: "Carpentry", cost: 150, work_id: 3 },
+];
+
 const AddSalaryEntryModal: React.FC<{
   employee_id: number;
   selectedCompany: string;
   ownCompanies: string[];
 }> = ({ employee_id, selectedCompany, ownCompanies }) => {
+  const companyOptions = ownCompanies.map((company) => ({
+    label: company,
+    value: company,
+  }));
   const [modalOpen, setModalOpen] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     employee_id: employee_id,
     payment: 0,
     record_date: "",
-    type_of_work: "",
+    // type_of_work: "",
     type_of_payment: "",
-    mode_of_payment: "",
-    company: selectedCompany,
+    payment_mode_id: -1,
+    company: "",
     works: [""],
     costs: [0],
     quantities: [0],
+    work_ids: [-1],
   });
+
+  const { latest, setLatest, paymentData, setPaymentData } =
+    usePaymentModeStore();
+
+  // setting default type of payment value
+  useEffect(() => {
+    const fetchPaymentModes = async () => {
+      try {
+        if (latest === false) {
+          const response = await getPaymentModes();
+          console.log("Response of payment data:", response);
+          setPaymentData(response.payment_types);
+          setLatest(true);
+        }
+        if (latest === true) {
+          // console.log("Payment modes data:", paymentData);
+        }
+      } catch (error) {
+        setLatest(false);
+        console.error("Error fetching payment modes:", error);
+      }
+    };
+    fetchPaymentModes();
+  }, []);
+
+  // setting default company value
+  useEffect(() => {
+    setFormData({
+      ...formData,
+      company: selectedCompany,
+    });
+  }, [selectedCompany]);
+
   const ToggleModal = () => {
     setModalOpen(!modalOpen);
   };
@@ -225,19 +272,92 @@ const AddSalaryEntryModal: React.FC<{
     });
   };
 
+  const handleTypOfPaymentChange = (
+    selectedOption: { label: string; value: string } | null
+  ) => {
+    if (selectedOption) {
+      setFormData({
+        ...formData,
+        type_of_payment: selectedOption.value,
+      });
+    }
+  };
+
+  const typeOfPaymentOptions = [
+    { label: "salary", value: "salary" },
+    { label: "advance", value: "advance" },
+    { label: "work_done", value: "work_done" },
+  ];
+
+  const workOptions: readonly (string | GroupBase<string>)[] = works.map(
+    (work) => ({
+      label: work.work_name,
+      value: work.work_name,
+    })
+  );
+
+  let paymentModesOptions: { label: string; value: string }[] = [];
+
+  // console.log("Payment data recieved is:", paymentData);
+  if (paymentData) {
+    paymentModesOptions = paymentData.map((payment) => ({
+      label: payment.payment_mode,
+      value: payment.payment_mode_id,
+    }));
+  }
+
+  // console.log("Payment modes options:", paymentModesOptions);
+
+  const handleWorkChange = (
+    selectedOption: { label: string; value: string } | null,
+    index: number
+  ) => {
+    // console.log(selectedOption);
+
+    if (selectedOption) {
+      const newArray = [...formData.works];
+      newArray[index] = selectedOption.value;
+      const work = works.find(
+        (work) => work.work_name === selectedOption.value
+      );
+      if (work) {
+        const newCosts = [...formData.costs];
+        newCosts[index] = work.cost;
+        const newWorkIds = [...formData.work_ids];
+        newWorkIds[index] = work.work_id;
+        // console.log(newArray);
+        setFormData({
+          ...formData,
+          costs: newCosts,
+          works: newArray,
+          work_ids: newWorkIds,
+        });
+      }
+    }
+  };
+
   const addArrayField = () => {
     setFormData({
       ...formData,
       works: [...formData.works, ""],
       costs: [...formData.costs, 0],
       quantities: [...formData.quantities, 0],
+      work_ids: [...formData.work_ids, -1],
     });
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log(formData);
+    console.log("formData is:", formData);
     ToggleModal();
+    let errors = validateSalaryForm(formData);
+    // console.log("Ers:", errors);
+    // console.log("Own companies:", ownCompanies);
+    if (Object.keys(errors).length > 0) {
+      console.log("Errors:", errors);
+      return;
+    }
+    // createEmployeeSalaryEntry(formData);
     // Submit formData to the server or process it as needed
   };
 
@@ -252,7 +372,7 @@ const AddSalaryEntryModal: React.FC<{
 
       {modalOpen && (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white w-11/12 md:w-3/4 lg:w-1/2 xl:w-1/3 h-3/4 overflow-auto rounded shadow-lg">
+          <div className=" w-11/12 md:w-3/4 lg:w-1/2 xl:w-1/3 max-h-screen overflow-auto rounded scrollbar-thin scrollbar-webkit ">
             <form
               className="bg-white p-6 rounded shadow-md"
               onSubmit={handleSubmit}
@@ -262,13 +382,30 @@ const AddSalaryEntryModal: React.FC<{
                 <div className="mb-4">
                   <label className="block mb-2">Works</label>
                   {formData.works.map((work, index) => (
-                    <div key={index} className="flex mb-2">
-                      <input
-                        className="w-full p-2 border rounded mr-2"
-                        type="text"
-                        value={work}
-                        onChange={(e) => handleArrayChange(e, index, "works")}
+                    <div key={index} className=" mb-2">
+                      <Select
+                        id="work"
+                        options={workOptions}
+                        onChange={(newValue) =>
+                          handleWorkChange(newValue, index)
+                        }
+                        className="shadow appearance-none border rounded w-full  text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                       />
+                      {/* <select
+                        id="work"
+                        value={work}
+                        onChange={(e) => handleWorkChange(e, index)}
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      >
+                        <option value="" disabled>
+                          Select work
+                        </option>
+                        {works.map((work) => (
+                          <option key={work.work_name} value={work.work_name}>
+                            {work.work_name}
+                          </option>
+                        ))}
+                      </select> */}
                       {index === formData.works.length - 1 && (
                         <button
                           className="bg-blue-500 text-white px-2 py-1 rounded"
@@ -291,7 +428,7 @@ const AddSalaryEntryModal: React.FC<{
                         value={cost}
                         onChange={(e) => handleArrayChange(e, index, "costs")}
                       />
-                      {index === formData.costs.length - 1 && (
+                      {/* {index === formData.costs.length - 1 && (
                         <button
                           className="bg-blue-500 text-white px-2 py-1 rounded"
                           type="button"
@@ -299,7 +436,7 @@ const AddSalaryEntryModal: React.FC<{
                         >
                           Add
                         </button>
-                      )}
+                      )} */}
                     </div>
                   ))}
                 </div>
@@ -315,7 +452,7 @@ const AddSalaryEntryModal: React.FC<{
                           handleArrayChange(e, index, "quantities")
                         }
                       />
-                      {index === formData.quantities.length - 1 && (
+                      {/* {index === formData.quantities.length - 1 && (
                         <button
                           className="bg-blue-500 text-white px-2 py-1 rounded"
                           type="button"
@@ -323,7 +460,7 @@ const AddSalaryEntryModal: React.FC<{
                         >
                           Add
                         </button>
-                      )}
+                      )} */}
                     </div>
                   ))}
                 </div>
@@ -351,31 +488,34 @@ const AddSalaryEntryModal: React.FC<{
                     onChange={handleChange}
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block mb-2" htmlFor="type_of_work">
-                    Type of Work
-                  </label>
-                  <input
-                    className="w-full p-2 border rounded"
-                    type="text"
-                    name="type_of_work"
-                    value={formData.type_of_work}
-                    onChange={handleChange}
-                  />
-                </div>
+
                 <div className="mb-4">
                   <label className="block mb-2" htmlFor="type_of_payment">
                     Type of Payment
                   </label>
-                  <input
-                    className="w-full p-2 border rounded"
-                    type="text"
-                    name="type_of_payment"
-                    value={formData.type_of_payment}
-                    onChange={handleChange}
+
+                  <Select
+                    options={typeOfPaymentOptions}
+                    onChange={handleTypOfPaymentChange}
                   />
                 </div>
+
                 <div className="mb-4">
+                  <label className="block mb-2" htmlFor="mode_of_payment">
+                    Mode of Payment
+                  </label>
+                  <Select
+                    options={paymentModesOptions}
+                    onChange={(newValue) =>
+                      setFormData({
+                        ...formData,
+                        payment_mode_id: newValue.value || "",
+                      })
+                    }
+                  />
+                </div>
+
+                {/* <div className="mb-4">
                   <label className="block mb-2" htmlFor="mode_of_payment">
                     Mode of Payment
                   </label>
@@ -386,7 +526,7 @@ const AddSalaryEntryModal: React.FC<{
                     value={formData.mode_of_payment}
                     onChange={handleChange}
                   />
-                </div>
+                </div> */}
                 {/* <div className="mb-4">
                   <label className="block mb-2" htmlFor="company">
                     Company
@@ -403,13 +543,27 @@ const AddSalaryEntryModal: React.FC<{
                   <label className="block mb-2" htmlFor="company">
                     Company
                   </label>
-                  <Dropdown
+                  <Select
+                    options={companyOptions}
+                    // defaultValue={{
+                    //   label: selectedCompany,
+                    //   value: selectedCompany || "",
+                    // }}
+                    onChange={(newValue) => {
+                      // console.log("newVlaue: ", newValue);
+                      setFormData({
+                        ...formData,
+                        company: newValue.value || selectedCompany,
+                      });
+                    }}
+                  />
+                  {/* <Dropdown
                     options={ownCompanies}
                     placeholder={selectedCompany || "Select an option"}
                     setOptionHandler={(value) =>
                       setFormData({ ...formData, ["company"]: value })
                     }
-                  />
+                  /> */}
                 </div>
               </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 interface DropdownProps {
   options: string[];
@@ -13,6 +13,7 @@ const Dropdown: React.FC<DropdownProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const toggleDropdown = () => setIsOpen(!isOpen);
 
@@ -21,18 +22,33 @@ const Dropdown: React.FC<DropdownProps> = ({
     setIsOpen(false);
     setOptionHandler(option);
   };
+  const handleClickOutside = (event: MouseEvent) => {
+    if (
+      dropdownRef.current &&
+      !dropdownRef.current.contains(event.target as Node)
+    ) {
+      setIsOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   return (
-    <div className="relative inline-block w-52">
+    <div ref={dropdownRef} className="relative inline-block ">
       <button
         type="button"
-        className="w-full px-4 py-2 text-left bg-white border rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-4 py-2 text-left bg-white border rounded-md shadow-md focus:outline-none hover:bg-blue-200 focus:ring-blue-500"
         onClick={toggleDropdown}
       >
         {selectedOption || placeholder}
       </button>
       {isOpen && (
-        <ul className="absolute z-10 w-full py-1 mt-1 overflow-auto bg-white border rounded-md shadow-lg max-h-60">
+        <ul className="absolute z-10 min-w-max py-1 mt-1 overflow-auto bg-white border rounded-md shadow-lg max-h-60">
           {options.map((option, index) => (
             <li
               key={index}

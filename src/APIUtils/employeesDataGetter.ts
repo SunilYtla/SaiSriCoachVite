@@ -1,4 +1,5 @@
 import axios from "axios";
+import useBusTypeStore from "../store/useBusType";
 
 interface Employee {
   employee_id: number;
@@ -169,6 +170,59 @@ const createEmployeeSalaryEntry = async (data: EmployeeSalaryData) => {
   }
 };
 
+const getPaymentModes = async () => {
+  try {
+    const response = await axios.get(
+      "http://127.0.0.1:8001/get_all_payment_types?key=&token=",
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    console.log("fetched payment modes are", response.data);
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching payment modes:", error);
+    return [];
+  }
+};
+
+interface BusType {
+  bus_type: string;
+}
+
+const createBusType = async (data: BusType) => {
+  try {
+    const response = await axios.post(
+      "http://127.0.0.1:8001/create_bus_type?key=&token=",
+      {
+        data,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    console.log(response.data);
+  } catch (error) {
+    console.error("Error creating bus type:", error);
+  }
+};
+
+const fetchBusTypes = async () => {
+  try {
+    const response = await axios.get(
+      "http://127.0.0.1:8001/get_all_bus_types?key=&token="
+    ); // Replace with your API URL
+    const { setData } = useBusTypeStore.getState();
+    setData(response.data);
+  } catch (error) {
+    console.error("Failed to fetch data", error);
+  }
+};
+
 // Example usage:
 async function main() {
   const employees = await getAllEmployees();
@@ -186,5 +240,8 @@ export {
   createEmployeeSalaryEntry,
   getEmployeeSalaryEntriesOfCompany,
   fetchAllOwnCompanies,
+  createBusType,
+  fetchBusTypes,
+  getPaymentModes,
 };
 export type { Employee, EmployeeInput };
